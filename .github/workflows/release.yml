@@ -1,0 +1,144 @@
+# Builds ScreenYield for macOS (one universal app for Apple silicon and Intel).
+#
+# - Push of a tag `v<version>` (matching `version` in Cargo.toml): a release under that tag. It is
+#   never replaced; for changes raise the version and tag again.
+# - Every push to main: the test build (pre-release under the tag `testing`), replaced each time.
+# - By hand under "Actions → Release → Run workflow": artifacts only, no release.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # The app tells releases from test builds (update check, version in the menu)
+  SY_CHANNEL: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'test' }}
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Tests
+        run: cargo test --release
+
+      - name: Licenses of the libraries
+        run: |
+          cargo install cargo-bundle-licenses --locked
+          cargo bundle-licenses --format yaml --output THIRD-PARTY-LICENSES.yml
+
+      - name: Version
+        id: version
+        run: echo "version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+
+      # Signed with the project's own certificate (secrets MACOS_SIGN_P12 as base64 and
+      # MACOS_SIGN_PASSWORD), so the app accepts its updates; without the secrets ad-hoc.
+      - name: App, zip and disk image
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          SY_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+        run: |
+          if [ -n "$MACOS_SIGN_P12" ]; then
+            echo "$MACOS_SIGN_P12" | base64 --decode > "$RUNNER_TEMP/sign.p12"
+            eval "$(scripts/signing-keychain.sh "$RUNNER_TEMP/sign.p12" "$RUNNER_TEMP/sign.keychain-db")"
+            rm "$RUNNER_TEMP/sign.p12"
+          else
+            echo "::warning::no signing certificate, the app is signed ad-hoc"
+          fi
+          for t in aarch64-apple-darwin x86_64-apple-darwin; do
+            cargo build --release --target $t
+          done
+          mkdir -p target/release
+          lipo -create -output target/release/screenyield \
+            target/aarch64-apple-darwin/release/screenyield target/x86_64-apple-darwin/release/screenyield
+          SY_SKIP_BUILD=1 scripts/bundle-macos.sh
+          mkdir -p pkg
+          V="${{ steps.version.outputs.version }}"
+          cp README.md LICENSE THIRD-PARTY-LICENSES.yml dist/
+          ditto -c -k --keepParent dist/ScreenYield.app "pkg/ScreenYield-$V-macOS.zip"
+          (cd dist && zip -q "../pkg/ScreenYield-$V-macOS.zip" README.md LICENSE THIRD-PARTY-LICENSES.yml)
+          scripts/make-dmg.sh "pkg/ScreenYield-$V-macOS.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ScreenYield-macOS
+          path: pkg/*
+
+  release:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        id: version
+        run: |
+          V=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$V" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match version $V in Cargo.toml"
+            exit 1
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          path: pkg
+          merge-multiple: true
+
+      - name: Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ScreenYield ${{ steps.version.outputs.version }}
+          prerelease: false
+          make_latest: true
+          body: |
+            ScreenYield ${{ steps.version.outputs.version }} for macOS 11 or newer (Apple silicon and Intel, one universal app).
+
+            Open the `.dmg` and drag ScreenYield to Applications. On first start macOS refuses it once: click Done, then System Settings → Privacy & Security → **Open Anyway**. Or install from Terminal without that step:
+            ```
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install-macos.sh | bash
+            ```
+
+            Already installed? Choose **Install update** in the menu of ScreenYield.
+          files: pkg/*
+
+      # The test build: remove the previous one with its tag, so the tag points at the new commit
+      - name: Remove the previous test build
+        if: github.ref_type == 'branch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete testing --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
+      - name: Test build
+        if: github.ref_type == 'branch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: testing
+          target_commitish: ${{ github.sha }}
+          name: ScreenYield test build (${{ steps.version.outputs.version }}, ${{ github.sha }})
+          prerelease: true
+          make_latest: false
+          body: |
+            **Test build** with the files below, made from the newest state of `main` (commit ${{ github.sha }}). It is replaced with every change and may have rough edges.
+
+            For everyday use, take the release marked **Latest** above instead.
+          files: pkg/*

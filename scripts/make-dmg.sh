@@ -15,6 +15,8 @@ trap 'rm -rf "$STAGE"' EXIT
 ditto "$APP" "$STAGE/ScreenYield.app"
 ln -s /Applications "$STAGE/Applications"
 cp README.md LICENSE "$STAGE/"
+# Licenses of the libraries (written by the release workflow)
+if [ -f dist/THIRD-PARTY-LICENSES.yml ]; then cp dist/THIRD-PARTY-LICENSES.yml "$STAGE/"; fi
 rm -f "$OUT"
 hdiutil create -quiet -volname "ScreenYield $VERSION" -srcfolder "$STAGE" -format UDZO "$OUT"
 echo "Done: $OUT"

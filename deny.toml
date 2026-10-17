@@ -1,0 +1,29 @@
+# Dependency checks with cargo-deny (run in CI):
+# licenses must be compatible with GPL-3.0 (no GPL-2.0-only, nothing proprietary),
+# known security advisories fail the build.
+
+[graph]
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+
+[advisories]
+ignore = []
+
+[licenses]
+allow = [
+    "GPL-3.0-or-later",
+    "MIT",
+    "Apache-2.0",
+    "Zlib",
+    "0BSD",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
