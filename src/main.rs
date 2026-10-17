@@ -9,6 +9,7 @@ mod icon;
 mod log;
 mod menu;
 mod model;
+mod self_update;
 mod settings;
 mod update;
 

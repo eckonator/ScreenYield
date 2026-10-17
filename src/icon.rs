@@ -35,12 +35,21 @@ fn coverage(size: u32, px: u32, py: u32, shape: impl Fn(f64, f64) -> bool) -> f6
     f64::from(hits) / 16.0
 }
 
-/// Menu bar symbol: black with alpha, macOS colors it as a template image.
-pub fn menu_bar(size: u32) -> Vec<u8> {
+/// Menu bar symbol: black with alpha, macOS colors it as a template image. `dot`: a small dot in
+/// the top right corner (an update is there), with a gap around it.
+pub fn menu_bar(size: u32, dot: bool) -> Vec<u8> {
+    let (cx, cy, r, gap) = (0.84, 0.16, 0.15, 0.07);
+    let shape = |x: f64, y: f64| {
+        if !dot {
+            return symbol(x, y);
+        }
+        let d = (x - cx).hypot(y - cy);
+        d <= r || (d > r + gap && symbol(x, y))
+    };
     let mut rgba = Vec::with_capacity((size * size * 4) as usize);
     for y in 0..size {
         for x in 0..size {
-            let a = coverage(size, x, y, symbol);
+            let a = coverage(size, x, y, shape);
             rgba.extend_from_slice(&[0, 0, 0, (a * 255.0).round() as u8]);
         }
     }
@@ -163,7 +172,8 @@ mod tests {
 
     #[test]
     fn symbols_have_the_right_size_and_some_ink() {
-        let bar = menu_bar(36);
+        let bar = menu_bar(36, false);
+        assert_ne!(bar, menu_bar(36, true));
         assert_eq!(bar.len(), 36 * 36 * 4);
         assert!(bar.chunks(4).any(|p| p[3] == 255));
         assert!(bar.chunks(4).any(|p| p[3] == 0));
