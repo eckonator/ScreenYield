@@ -817,12 +817,13 @@ dependencies = [
 
 [[package]]
 name = "screenyield"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "core-foundation-sys",
  "libc",
  "objc2",
  "objc2-app-kit",
+ "objc2-foundation",
  "serde",
  "serde_json",
  "tray-icon",

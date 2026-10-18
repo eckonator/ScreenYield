@@ -7,6 +7,10 @@
 
 use std::ffi::c_void;
 
+use objc2::MainThreadMarker;
+use objc2_app_kit::NSScreen;
+use objc2_foundation::{NSNumber, ns_string};
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 struct CGPoint {
@@ -62,13 +66,15 @@ pub fn supported() -> bool {
     configure_enabled().is_some()
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Display {
     pub id: u32,
     /// Left edge in the arrangement of System Settings (points).
     pub x: f64,
     pub builtin: bool,
     pub main: bool,
+    /// What the monitor calls itself ("LEN L28u-30"), empty if unknown.
+    pub name: String,
 }
 
 /// The displays with a picture right now.
@@ -79,6 +85,7 @@ pub fn active() -> Vec<Display> {
         return Vec::new();
     }
     let main = unsafe { CGMainDisplayID() };
+    let names = names();
     ids[..count as usize]
         .iter()
         .map(|&id| Display {
@@ -86,6 +93,26 @@ pub fn active() -> Vec<Display> {
             x: unsafe { CGDisplayBounds(id) }.origin.x,
             builtin: unsafe { CGDisplayIsBuiltin(id) },
             main: id == main,
+            name: names
+                .iter()
+                .find(|(n, _)| *n == id)
+                .map(|(_, name)| name.clone())
+                .unwrap_or_default(),
+        })
+        .collect()
+}
+
+/// The names of the screens as System Settings shows them (only known on the main thread).
+fn names() -> Vec<(u32, String)> {
+    let Some(mtm) = MainThreadMarker::new() else {
+        return Vec::new();
+    };
+    NSScreen::screens(mtm)
+        .iter()
+        .filter_map(|screen| {
+            let number = screen.deviceDescription().objectForKey(ns_string!("NSScreenNumber"))?;
+            let number = number.downcast::<NSNumber>().ok()?;
+            Some((number.unsignedIntValue(), screen.localizedName().to_string()))
         })
         .collect()
 }

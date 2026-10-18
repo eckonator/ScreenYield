@@ -10,6 +10,8 @@ pub struct Monitor {
     pub x: f64,
     pub on: bool,
     pub main: bool,
+    /// What the monitor calls itself, empty if unknown; kept while it is off.
+    pub name: String,
 }
 
 #[derive(Debug, Default)]
@@ -26,12 +28,24 @@ impl Model {
     pub fn update(&mut self, active: &[Display], off: &[u32]) {
         let before = std::mem::take(&mut self.monitors);
         self.builtin_on = active.iter().any(|d| d.builtin);
+        let old_name = |id: u32| {
+            before
+                .iter()
+                .find(|m| m.id == id)
+                .map(|m| m.name.clone())
+                .unwrap_or_default()
+        };
         for d in active.iter().filter(|d| !d.builtin) {
             self.monitors.push(Monitor {
                 id: d.id,
                 x: d.x,
                 on: true,
                 main: d.main,
+                name: if d.name.is_empty() {
+                    old_name(d.id)
+                } else {
+                    d.name.clone()
+                },
             });
         }
         for id in off {
@@ -44,6 +58,7 @@ impl Model {
                 x,
                 on: false,
                 main: false,
+                name: old_name(*id),
             });
         }
         self.monitors.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.id.cmp(&b.id)));
@@ -90,7 +105,14 @@ mod tests {
     use super::*;
 
     fn display(id: u32, x: f64, builtin: bool, main: bool) -> Display {
-        Display { id, x, builtin, main }
+        let name = if builtin { "Built-in Display" } else { "LEN L28u-30" };
+        Display {
+            id,
+            x,
+            builtin,
+            main,
+            name: name.into(),
+        }
     }
 
     /// Monitor 1 / Monitor 2 (main) / MacBook, as on the desk this was written for.
@@ -121,6 +143,7 @@ mod tests {
         let order: Vec<(u32, bool)> = model.monitors.iter().map(|m| (m.id, m.on)).collect();
         assert_eq!(order, [(3, false), (2, true)]);
         assert_eq!(model.off_ids(), [3]);
+        assert_eq!(model.monitors[0].name, "LEN L28u-30", "the name stays while off");
         assert_eq!(model.on_ids(), [2]);
     }
 

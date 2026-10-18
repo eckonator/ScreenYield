@@ -221,8 +221,9 @@ fn log_monitors(model: &Model) {
         .iter()
         .map(|m| {
             format!(
-                "{}{}{}",
+                "{} \"{}\"{}{}",
                 m.id,
+                m.name,
                 if m.on { "" } else { " off" },
                 if m.main { " main" } else { "" }
             )
@@ -242,6 +243,9 @@ fn build(app: &App) -> Menu {
     } else {
         for (i, m) in model.monitors.iter().enumerate() {
             let mut text = format!("{} {}", tr("Monitor"), i + 1);
+            if !m.name.is_empty() {
+                text = format!("{text} ({})", m.name);
+            }
             if m.main {
                 text = format!("{text} – {}", tr("main display"));
             }
