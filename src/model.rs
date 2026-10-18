@@ -44,7 +44,7 @@ impl Model {
                 name: if d.name.is_empty() {
                     old_name(d.id)
                 } else {
-                    d.name.clone()
+                    base_name(&d.name).to_string()
                 },
             });
         }
@@ -87,6 +87,20 @@ impl Model {
 
     pub fn off_ids(&self) -> Vec<u32> {
         self.monitors.iter().filter(|m| !m.on).map(|m| m.id).collect()
+    }
+}
+
+/// macOS numbers monitors with the same name ("LEN L28u-30 (1)", "… (2)") in an order of its own
+/// and renumbers them when one goes off; the menu numbers them itself, so that part is left out.
+fn base_name(name: &str) -> &str {
+    let Some(start) = name.strip_suffix(')').and_then(|n| n.rfind(" (")) else {
+        return name;
+    };
+    let number = &name[start + 2..name.len() - 1];
+    if !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit()) {
+        &name[..start]
+    } else {
+        name
     }
 }
 
@@ -159,6 +173,20 @@ mod tests {
         model.update(&desk(), &[]);
         let ids: Vec<u32> = model.monitors.iter().map(|m| m.id).collect();
         assert_eq!(ids, [3, 2]);
+    }
+
+    #[test]
+    fn the_counter_of_macos_is_left_out_of_names() {
+        assert_eq!(base_name("LEN L28u-30 (2)"), "LEN L28u-30");
+        assert_eq!(base_name("LEN L28u-30"), "LEN L28u-30");
+        assert_eq!(base_name("Studio Display (USB-C)"), "Studio Display (USB-C)");
+        assert_eq!(base_name("()"), "()");
+        let mut model = Model::default();
+        let mut desk = desk();
+        desk[0].name = "LEN L28u-30 (1)".into();
+        desk[2].name = "LEN L28u-30 (2)".into();
+        model.update(&desk, &[]);
+        assert!(model.monitors.iter().all(|m| m.name == "LEN L28u-30"));
     }
 
     #[test]
