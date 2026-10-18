@@ -8,19 +8,10 @@ connected to both monitors): switch a monitor off on one Mac, and the monitor sh
 computer. macOS moves windows, menu bar and Dock to the screens that remain, as if the cable had been
 pulled. Switching it on again brings back the old arrangement.
 
-```
-✓ Monitor 1
-✓ Monitor 2 – main display
-──────────────────────────────────
-  Switch all external monitors off
-  Switch all external monitors on
-──────────────────────────────────
-✓ Check for updates automatically
-✓ Start at login
-──────────────────────────────────
-  ScreenYield 0.1.0
-  Quit ScreenYield
-```
+<p align="center">
+  <img src="docs/images/menu.png" width="288" alt="The ScreenYield menu: Monitor 1 and Monitor 2, switch all external monitors off or on, check for updates automatically, start at login, version and quit">
+</p>
+<p align="center"><em>Both monitors handed over to the other computer.</em></p>
 
 - Monitors are numbered from left to right; a monitor that is off keeps its number.
 - The last screen is never switched off (with the MacBook closed, one monitor stays on).
@@ -28,7 +19,8 @@ pulled. Switching it on again brings back the old arrangement.
   ends unexpectedly, it switches them on at its next start.
 - Whether a monitor shows the other computer by itself depends on its input setting (automatic
   input selection).
-- The menu is in German or English, after the first preferred language of the system.
+- The menu is in German or English, after the first preferred language of the system (System
+  Settings → General → Language & Region); a change applies at the next start of ScreenYield.
 
 Windows and Linux can do this out of the box (Windows: Win+P, "Disconnect this display";
 Linux: display settings), so ScreenYield is for macOS only: macOS 11 or newer, Apple silicon and
