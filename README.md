@@ -1,4 +1,4 @@
-# ScreenYield
+<p align="center"><img src="docs/images/banner.png" alt="ScreenYield: switch external monitors off and on without pulling a cable"></p>
 
 A small menu bar app for macOS that switches external monitors off and on again – one by one or
 all together – without pulling a cable.
